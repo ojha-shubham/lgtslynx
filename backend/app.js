@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const indexingRoutes = require("./src/routes/indexing.routes");
+const contentRoutes = require("./src/routes/content.routes")
 const { errorHandler } = require("./src/middlewares/error.middleware");
 
 const app = express();
@@ -20,6 +21,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/indexing", indexingRoutes);
+app.use("/api/content", contentRoutes)
 
 // error middleware LAST
 app.use(errorHandler);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Card from "../components/Card";
 import { FaMagic, FaBrain } from "react-icons/fa";
+import { generateContentStrategy } from "../../api/indexingApi";
 
 export default function ContentStrategistView() {
   const [keyword, setKeyword] = useState("");
@@ -14,14 +15,15 @@ export default function ContentStrategistView() {
     { name: "Backlink Strategies", count: 5 },
   ];
 
-  const pushLog = (type, message) => {
-    const time = new Date().toLocaleTimeString();
-    setLogs((prev) => [...prev, { type, message, time }]);
-  };
-
-  const generateStrategy = () => {
+  const generateStrategy = async () => {
     if (!keyword.trim()) {
-      pushLog("error", "Keyword / niche is required");
+      setLogs([
+        {
+          type: "error",
+          message: "Keyword / niche is required",
+          time: new Date().toLocaleTimeString(),
+        },
+      ]);
       return;
     }
 
@@ -29,28 +31,27 @@ export default function ContentStrategistView() {
     setResult(null);
     setLoading(true);
 
-    pushLog("info", "Initializing Gemini content strategist");
-    pushLog("info", `Analyzing niche: "${keyword}"`);
+    try {
+      const res = await generateContentStrategy({ keyword });
 
-    setTimeout(() => {
-      pushLog("success", "Search intent analyzed");
-      pushLog("info", "Generating topic clusters");
-
-      setTimeout(() => {
-        pushLog("success", "Content calendar generated");
-        setResult([
-          "Pillar article: Complete guide to " + keyword,
-          "Cluster: How " + keyword + " impacts SEO",
-          "Cluster: Tools for " + keyword,
-          "Cluster: Common mistakes in " + keyword,
-        ]);
-        setLoading(false);
-      }, 1200);
-    }, 800);
+      setLogs(res.logs || []);
+      setResult(res.result || null);
+    } catch (err) {
+      setLogs([
+        {
+          type: "error",
+          message: err.message,
+          time: new Date().toLocaleTimeString(),
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* LEFT PANEL */}
       <Card className="p-6 space-y-6">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
@@ -78,14 +79,10 @@ export default function ContentStrategistView() {
         <button
           onClick={generateStrategy}
           disabled={loading}
-          className={`
-            w-full py-3 rounded-lg font-semibold transition
-            ${
-              loading
-                ? "bg-slate-400 cursor-not-allowed text-white"
-                : "bg-accent hover:bg-accent/90 text-white"
-            }
-          `}
+          className={`w-full py-3 rounded-lg font-semibold transition ${loading
+            ? "bg-slate-400 cursor-not-allowed text-white"
+            : "bg-accent hover:bg-accent/90 text-white"
+            }`}
         >
           {loading ? "Generating…" : "Generate Strategy"}
         </button>
@@ -113,64 +110,92 @@ export default function ContentStrategistView() {
         </div>
       </Card>
 
-      <Card className="lg:col-span-2 p-6">
-        {!logs.length && !result && (
-          <div
-            className="h-full border-2 border-dashed border-accent/40
-                       flex flex-col items-center justify-center
-                       rounded-xl text-center text-slate-400"
-          >
-            <FaBrain className="text-4xl mb-4 text-accent" />
-            <p className="max-w-md text-sm">
-              Enter a niche to generate an AI-powered content strategy.
-            </p>
-          </div>
-        )}
-
-        {logs.length > 0 && (
-          <div className="bg-black text-slate-200 rounded-xl p-4 font-mono text-sm mb-4 max-h-60 overflow-y-auto">
-            <div className="text-slate-500 mb-2">
-              &gt; <span className="text-accent">gemini-console</span>
+      <Card className="lg:col-span-2 p-6 h-[520px] flex flex-col">
+        <div className="flex-1 overflow-y-auto pr-1">
+          {!logs.length && !result && (
+            <div
+              className="h-full border-2 border-dashed border-accent/40
+                   flex flex-col items-center justify-center
+                   rounded-xl text-center text-slate-400"
+            >
+              <FaBrain className="text-4xl mb-4 text-accent" />
+              <p className="max-w-md text-sm">
+                Enter a niche to generate an AI-powered content strategy.
+              </p>
             </div>
+          )}
 
-            {logs.map((log, i) => (
-              <div key={i} className="flex gap-2 mb-1">
-                <span className="text-slate-500">[{log.time}]</span>
-                <span
-                  className={
-                    log.type === "success"
-                      ? "text-green-400"
-                      : log.type === "error"
-                      ? "text-red-400"
-                      : "text-blue-400"
-                  }
-                >
-                  {log.type.toUpperCase()}
-                </span>
-                <span>{log.message}</span>
+          {logs.length > 0 && (
+            <div className="bg-black text-slate-200 rounded-xl p-4 font-mono text-sm mb-4 max-h-60 overflow-y-auto">
+              <div className="text-slate-500 mb-2">
+                &gt; <span className="text-accent">gemini-console</span>
               </div>
-            ))}
-          </div>
-        )}
 
-        {result && (
-          <div>
-            <h3 className="font-semibold mb-3 text-slate-800">
-              Generated Content Plan
-            </h3>
-            <ul className="space-y-2 text-sm">
-              {result.map((item, i) => (
-                <li
-                  key={i}
-                  className="border-l-4 border-accent
-                             bg-white rounded-lg px-4 py-2"
-                >
-                  {item}
-                </li>
+              {logs.map((log, i) => (
+                <div key={i} className="flex gap-2 mb-1">
+                  <span className="text-slate-500">[{log.time}]</span>
+                  <span
+                    className={
+                      log.type === "success"
+                        ? "text-green-400"
+                        : log.type === "error"
+                          ? "text-red-400"
+                          : "text-blue-400"
+                    }
+                  >
+                    {log.type.toUpperCase()}
+                  </span>
+                  <span>{log.message}</span>
+                </div>
               ))}
-            </ul>
-          </div>
-        )}
+            </div>
+          )}
+
+          {result && (
+            <div>
+              <h3 className="font-semibold mb-3 text-slate-800">
+                Generated Content Plan
+              </h3>
+
+              <div className="space-y-4 text-sm">
+                <div>
+                  <p className="font-medium text-slate-700">Pillar Article</p>
+                  <p className="border-l-4 border-accent bg-white rounded px-4 py-2">
+                    {result.pillar}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="font-medium text-slate-700">Topic Clusters</p>
+                  <ul className="space-y-2">
+                    {(result.clusters || []).map((c, i) => (
+                      <li
+                        key={i}
+                        className="border-l-4 border-accent bg-white rounded px-4 py-2"
+                      >
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div>
+                  <p className="font-medium text-slate-700">Content Calendar</p>
+                  <ul className="space-y-2">
+                    {(result.calendar || result.calender || []).map((c, i) => (
+                      <li
+                        key={i}
+                        className="border-l-4 border-accent bg-white rounded px-4 py-2"
+                      >
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   );

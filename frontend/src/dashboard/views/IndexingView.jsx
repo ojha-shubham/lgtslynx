@@ -15,6 +15,13 @@ export default function IndexingView() {
 
   const pollRef = useRef(null);
 
+  const pushLog = (type, message) => {
+    setLogs((prev) => [
+      ...prev,
+      { type, message, time: new Date().toLocaleTimeString() },
+    ]);
+  };
+
   const handleSubmit = async () => {
     if (!url.trim()) {
       pushLog("error", "Invalid URL provided");
@@ -33,9 +40,11 @@ export default function IndexingView() {
 
       pollRef.current = setInterval(async () => {
         const res = await fetchIndexingLogs(jobId);
-        setLogs(res.logs);
+        setLogs(res.logs || []);
 
-        if (res.status === "submitted" || res.status === "failed") {
+        if (
+          res.status === "submitted" || res.status === "signals_sent" ||          res.status === "failed"
+        ) {
           clearInterval(pollRef.current);
           setLoading(false);
         }
@@ -44,11 +53,6 @@ export default function IndexingView() {
       pushLog("error", err.message);
       setLoading(false);
     }
-  };
-
-  const pushLog = (type, message) => {
-    const time = new Date().toLocaleTimeString();
-    setLogs((prev) => [...prev, { type, message, time }]);
   };
 
   return (
@@ -141,7 +145,7 @@ export default function IndexingView() {
                 className={
                   log.type === "success"
                     ? "text-green-400"
-                    : log.type === "warn"
+                    : log.type === "warning"
                     ? "text-yellow-400"
                     : log.type === "error"
                     ? "text-red-400"

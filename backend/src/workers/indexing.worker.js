@@ -61,7 +61,7 @@ new Worker(
       );
 
       const url = dbJob.url;
-      const pingGSC = dbJob.options?.pingGSC === true;
+      let pingGSC = dbJob.options?.pingGSC === true;
       let domain;
 
       try {
@@ -87,18 +87,39 @@ new Worker(
             "Google Indexing API notified successfully"
           );
         } catch (err) {
-          await pushLog(
-            jobId,
-            "error",
-            `Indexing API error: ${err?.message || "unknown"}`
-          );
-          await IndexingJob.updateOne(
-            { _id: jobId },
-            { $set: { status: "failed" } }
-          );
-          return;
+          const msg = err?.message || "";
+
+          if (msg.includes("Permission denied")) {
+            await pushLog(
+              jobId,
+              "warning",
+              "Google ownership verification failed. Falling back to suggestion mode."
+            );
+
+            await pushLog(
+              jobId,
+              "info",
+              "Tip: Verify this site in Google Search Console to enable direct indexing."
+            );
+
+            pingGSC = false;
+          } else {
+            await pushLog(
+              jobId,
+              "error",
+              `Indexing API error: ${msg}`
+            );
+
+            await IndexingJob.updateOne(
+              { _id: jobId },
+              { $set: { status: "failed" } }
+            );
+            return;
+          }
         }
-      } else {
+      }
+
+      if (!pingGSC) {
         await pushLog(
           jobId,
           "info",
@@ -203,7 +224,7 @@ new Worker(
         "success",
         pingGSC
           ? "Indexing request submitted to Google"
-          : "Indexing signals sent (final decision by Google)"
+          : "Indexing signals sent (Google decides final indexing)"
       );
 
       logger.info(`Worker completed successfully for ${url}`);
@@ -212,7 +233,6 @@ new Worker(
         tag: "WORKER_FATAL",
         message: err?.message || "Unknown error",
         stack: err?.stack,
-        raw: err,
       });
 
       await IndexingJob.updateOne(
