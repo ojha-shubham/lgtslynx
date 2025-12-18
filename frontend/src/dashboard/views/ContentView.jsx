@@ -33,7 +33,6 @@ export default function ContentStrategistView() {
 
     try {
       const res = await generateContentStrategy({ keyword });
-
       setLogs(res.logs || []);
       setResult(res.result || null);
     } catch (err) {
@@ -51,7 +50,7 @@ export default function ContentStrategistView() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* LEFT PANEL */}
+      
       <Card className="p-6 space-y-6">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
@@ -59,7 +58,7 @@ export default function ContentStrategistView() {
             AI Content Strategist
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Generate high-ranking content ideas using Gemini.
+            Generate high-ranking content ideas using AI.
           </p>
         </div>
 
@@ -89,7 +88,7 @@ export default function ContentStrategistView() {
 
         <div className="border-t pt-4">
           <p className="text-xs font-semibold text-slate-400 mb-3">
-            YOUR EXISTING CLUSTERS
+            SAMPLE CLUSTER CATEGORIES
           </p>
 
           <div className="space-y-2">
@@ -113,11 +112,9 @@ export default function ContentStrategistView() {
       <Card className="lg:col-span-2 p-6 h-[520px] flex flex-col">
         <div className="flex-1 overflow-y-auto pr-1">
           {!logs.length && !result && (
-            <div
-              className="h-full border-2 border-dashed border-accent/40
+            <div className="h-full border-2 border-dashed border-accent/40
                    flex flex-col items-center justify-center
-                   rounded-xl text-center text-slate-400"
-            >
+                   rounded-xl text-center text-slate-400">
               <FaBrain className="text-4xl mb-4 text-accent" />
               <p className="max-w-md text-sm">
                 Enter a niche to generate an AI-powered content strategy.
@@ -126,9 +123,9 @@ export default function ContentStrategistView() {
           )}
 
           {logs.length > 0 && (
-            <div className="bg-black text-slate-200 rounded-xl p-4 font-mono text-sm mb-4 max-h-60 overflow-y-auto">
+            <div className="bg-black text-slate-200 rounded-xl p-4 font-mono text-sm mb-6 max-h-60 overflow-y-auto">
               <div className="text-slate-500 mb-2">
-                &gt; <span className="text-accent">gemini-console</span>
+                &gt; <span className="text-accent">ai-console</span>
               </div>
 
               {logs.map((log, i) => (
@@ -152,45 +149,63 @@ export default function ContentStrategistView() {
           )}
 
           {result && (
-            <div>
-              <h3 className="font-semibold mb-3 text-slate-800">
-                Generated Content Plan
-              </h3>
-
-              <div className="space-y-4 text-sm">
-                <div>
-                  <p className="font-medium text-slate-700">Pillar Article</p>
-                  <p className="border-l-4 border-accent bg-white rounded px-4 py-2">
-                    {result.pillar}
-                  </p>
+            <div className="space-y-6">
+              <div>
+                <p className="font-medium text-slate-700 mb-1">
+                  Pillar Article
+                </p>
+                <div className="border-l-4 border-accent bg-white rounded px-4 py-2">
+                  {result.pillar}
                 </div>
+              </div>
 
-                <div>
-                  <p className="font-medium text-slate-700">Topic Clusters</p>
-                  <ul className="space-y-2">
-                    {(result.clusters || []).map((c, i) => (
-                      <li
-                        key={i}
-                        className="border-l-4 border-accent bg-white rounded px-4 py-2"
-                      >
-                        {c}
-                      </li>
-                    ))}
-                  </ul>
+              <div>
+                <p className="font-medium text-slate-700 mb-2">
+                  Topic Clusters
+                </p>
+
+                <div className="space-y-3">
+                  {(result.clusters || []).map((c, i) => (
+                    <div
+                      key={i}
+                      className="border rounded-lg p-4 bg-slate-50"
+                    >
+                      <p className="font-semibold">{c.title}</p>
+
+                      <p className="text-xs text-slate-500 mt-1">
+                        Type: {c.content_type}
+                      </p>
+
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {(c.keywords || []).map((k, ki) => (
+                          <span
+                            key={ki}
+                            className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded"
+                          >
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              </div>
 
-                <div>
-                  <p className="font-medium text-slate-700">Content Calendar</p>
-                  <ul className="space-y-2">
-                    {(result.calendar || result.calender || []).map((c, i) => (
-                      <li
-                        key={i}
-                        className="border-l-4 border-accent bg-white rounded px-4 py-2"
-                      >
-                        {c}
-                      </li>
-                    ))}
-                  </ul>
+              <div>
+                <p className="font-medium text-slate-700 mb-2">
+                  Content Calendar
+                </p>
+
+                <div className="space-y-2">
+                  {(result.calendar || []).map((c, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between border-l-4 border-accent bg-white rounded px-4 py-2 text-sm"
+                    >
+                      <span>{c.topic}</span>
+                      <span className="text-slate-500">{c.date}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
