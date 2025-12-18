@@ -1,7 +1,7 @@
 const API_BASE = "https://vigilant-journey-65q46wx54qhwpv-5000.app.github.dev/api";
 
 export const submitIndexingJob = async (payload) => {
-  const res = await fetch(`${API_BASE}/submit`, {
+  const res = await fetch(`${API_BASE}/indexing/submit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
