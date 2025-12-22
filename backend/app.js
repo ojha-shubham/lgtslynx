@@ -14,7 +14,7 @@ app.set("trust proxy", 1);
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://frontend-production-4e2f.up.railway.app/"],
+    origin: ["http://localhost:5173", "https://frontend-production-4e2f.up.railway.app"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
