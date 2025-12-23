@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import Card from "../components/Card";
-import { FaBolt, FaLink, FaFileUpload } from "react-icons/fa"; // FaFileUpload add kiya
+import { FaBolt, FaLink, FaFileUpload } from "react-icons/fa";
 import {
   submitIndexingJob,
   fetchIndexingLogs,
@@ -8,7 +8,7 @@ import {
 
 export default function IndexingView() {
   const [url, setUrl] = useState("");
-  const [file, setFile] = useState(null); // New state for CSV
+  const [file, setFile] = useState(null);
   const [pingGSC, setPingGSC] = useState(true);
   const [updateSitemap, setUpdateSitemap] = useState(true);
   const [loading, setLoading] = useState(false);

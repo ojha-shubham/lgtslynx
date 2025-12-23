@@ -11,6 +11,7 @@ const logSchema = new mongoose.Schema(
 
 const indexingJobSchema = new mongoose.Schema(
   {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     url: { type: String, required: true },
     options: {
       pingGSC: Boolean,
