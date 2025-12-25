@@ -74,9 +74,9 @@ export const generateContentStrategy = async (payload) => {
 
 export const getDashboardData = async () => {
   try {
-    const res = await fetch(`${API_BASE}/indexing/dashboard`, { 
+    const res = await fetch(`${API_BASE}/indexing/dashboard`, {
       method: "GET",
-      credentials: "include", 
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
@@ -93,14 +93,14 @@ export const getDashboardData = async () => {
   }
 };
 
-export const verifyGscConnection = async () => {
+export const verifyGscConnection = async (domain) => {
   try {
-    const res = await fetch(`${API_BASE}/indexing/verify-access`, { 
+    const query = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+
+    const res = await fetch(`${API_BASE}/indexing/verify-access${query}`, {
       method: "GET",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -132,7 +132,7 @@ export const downloadReport = async () => {
     method: "GET",
     credentials: "include",
   });
-  
+
   if (!res.ok) throw new Error("Failed to download report");
 
   const blob = await res.blob();
@@ -143,4 +143,16 @@ export const downloadReport = async () => {
   document.body.appendChild(a);
   a.click();
   a.remove();
+};
+
+export const refillCredits = async () => {
+  const res = await fetch(`${API_BASE}/indexing/refill`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" }
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Refill failed");
+  return data;
 };

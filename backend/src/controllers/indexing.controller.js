@@ -35,6 +35,41 @@ const processBulkUpload = (filePath, req, res, next) => {
           return res.status(400).json({ success: false, message: "CSV is empty or invalid" });
         }
 
+        const user = await User.findById(req.user._id);
+
+        const verifiedHosts = user.verifiedSites.map(site =>
+          site.replace("sc-domain:", "").replace("www.", "")
+        );
+
+        const invalidUrls = results.filter(url => {
+          try {
+            const urlHost = new URL(url).hostname.replace("www.", "");
+            const isMatch = verifiedHosts.some(vh => urlHost.includes(vh));
+            return !isMatch;
+          } catch (e) {
+            return true;
+          }
+        });
+
+        if (invalidUrls.length > 0) {
+          return res.status(403).json({
+            success: false,
+            message: `⚠️ Security Alert: CSV contains unverified domains.`,
+            detail: `You don't own: ${invalidUrls[0]} (and maybe others). Please verify domain first.`
+          });
+        }
+
+        const cost = results.length;
+
+        if (user.credits < cost) {
+          return res.status(402).json({
+            success: false,
+            message: `Insufficient credits! File has ${cost} URLs, but you have ${user.credits} credits.`,
+            required: cost,
+            available: user.credits
+          });
+        }
+
         const userId = req.user ? req.user._id : null;
         const { pingGSC, updateSitemap } = req.body;
 
@@ -58,12 +93,17 @@ const processBulkUpload = (filePath, req, res, next) => {
           });
         }
 
-        logger.info(`Bulk Indexing: ${savedJobs.length} jobs created by user ${userId}`);
+        user.credits -= cost;
+        await user.save();
+
+        logger.info(`Bulk Indexing: ${savedJobs.length} jobs created. Credits deducted: ${cost}`);
 
         return res.status(201).json({
           success: true,
           message: `Successfully queued ${savedJobs.length} URLs`,
           count: savedJobs.length,
+          creditsLeft: user.credits,
+          submittedUrls: savedJobs.map(job => job.url),
           jobId: savedJobs[0]._id,
           mode: "bulk"
         });
@@ -95,8 +135,34 @@ const submitIndexingJob = async (req, res, next) => {
 
     url = normalizeUrl(url);
 
+    const user = await User.findById(req.user._id);
+
+    try {
+      const urlObj = new URL(url);
+      const targetHost = urlObj.hostname.replace("www.", "");
+
+      const isVerified = user.verifiedSites.some(site => {
+        const cleanSite = site.replace("sc-domain:", "").replace("www.", "");
+        return targetHost.includes(cleanSite);
+      });
+
+      if (!isVerified) {
+        return res.status(403).json({
+          success: false,
+          message: `⚠️ Domain Not Verified! Please verify '${targetHost}' in Settings first.`
+        });
+      }
+    } catch (e) {
+    }
+
+    if (user.credits < 1) {
+      const err = new Error("Insufficient credits. Please upgrade your plan.");
+      err.statusCode = 402;
+      throw err;
+    }
+
     const job = await IndexingJob.create({
-      user: req.user ? req.user._id : null,
+      user: req.user._id,
       url,
       options: { pingGSC, updateSitemap },
     });
@@ -105,13 +171,17 @@ const submitIndexingJob = async (req, res, next) => {
       jobId: String(job._id),
     });
 
-    logger.info(`Indexing job queued: ${job._id} | ${url}`);
+    user.credits -= 1;
+    await user.save();
+
+    logger.info(`Indexing job queued. Credits left: ${user.credits}`);
 
     res.status(201).json({
       success: true,
       jobId: job._id,
       status: "queued",
       url,
+      creditsLeft: user.credits,
       mode: "single"
     });
   } catch (err) {
@@ -211,7 +281,7 @@ const getDashboardStats = async (req, res, next) => {
         .limit(5)
         .select("url status createdAt")
         .lean(),
-      User.findById(userId).select("credits").lean()
+      User.findById(userId).select("credits verifiedSites").lean()
     ]);
 
     let stats = { totalIndexed: 0, pending: 0, failed: 0 };
@@ -232,6 +302,7 @@ const getDashboardStats = async (req, res, next) => {
         ...stats,
         credits: userData?.credits || 0,
       },
+      verifiedSites: userData?.verifiedSites || [],
       recentActivity: recentActivity || []
     });
 
@@ -276,27 +347,52 @@ const exportJobsCsv = async (req, res, next) => {
 
 const checkServiceAccountAccess = async (req, res, next) => {
   try {
+    const rawDomain = req.query.domain;
+
     const webmasters = google.webmasters({
       version: "v3",
       auth: auth,
     });
 
     const response = await webmasters.sites.list();
-    const sites = response.data.siteEntry || [];
+    const allSites = response.data.siteEntry || [];
 
-    const verifiedSites = sites
-      .filter(site => site.permissionLevel === "siteOwner")
-      .map(site => site.siteUrl);
+    const ownerSites = allSites.filter(s => s.permissionLevel === "siteOwner");
 
-    if (verifiedSites.length > 0 && req.user && req.user._id) {
-        await User.findByIdAndUpdate(req.user._id, { 
-            verifiedSites: verifiedSites 
-        });
+    let matchedSites = [];
+
+    if (rawDomain) {
+      let coreDomain = rawDomain
+        .replace(/^(sc-domain:|https?:\/\/)/, '')
+        .replace(/^www\./, '')
+        .replace(/\/$/, '');
+      console.log("Searching for Core Domain:", coreDomain);
+
+      const possibleFormats = [
+        `sc-domain:${coreDomain}`,
+        `https://${coreDomain}/`,
+        `https://www.${coreDomain}/`,
+        `http://${coreDomain}/`,
+        `http://www.${coreDomain}/`
+      ];
+
+      matchedSites = ownerSites
+        .filter(site => possibleFormats.includes(site.siteUrl))
+        .map(site => site.siteUrl);
+
+    } else {
+      matchedSites = ownerSites.map(site => site.siteUrl);
+    }
+
+    if (matchedSites.length > 0 && req.user && req.user._id) {
+      await User.findByIdAndUpdate(req.user._id, {
+        $addToSet: { verifiedSites: { $each: matchedSites } }
+      });
     }
 
     res.status(200).json({
       success: true,
-      sites: verifiedSites
+      sites: matchedSites
     });
 
   } catch (err) {
@@ -310,20 +406,45 @@ const checkServiceAccountAccess = async (req, res, next) => {
 };
 
 const getSavedStatus = async (req, res) => {
-    try {
-      if (!req.user || !req.user._id) {
-        return res.json({ success: false, sites: [] });
-      }
-      
-      const user = await User.findById(req.user._id).select("verifiedSites");
-      res.json({ 
-        success: user.verifiedSites && user.verifiedSites.length > 0, 
-        sites: user.verifiedSites || [] 
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: "Error fetching status" });
+  try {
+    if (!req.user || !req.user._id) {
+      return res.json({ success: false, sites: [] });
     }
+
+    const user = await User.findById(req.user._id).select("verifiedSites");
+    res.json({
+      success: user.verifiedSites && user.verifiedSites.length > 0,
+      sites: user.verifiedSites || []
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error fetching status" });
+  }
 };
+
+const freeRefill = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (user.credits >= 100) {
+      return res.status(400).json({
+        success: false,
+        message: "You already have enough credits! Use them first."
+      });
+    }
+
+    user.credits += 50;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Refill Successful! Added 50 Credits.",
+      credits: user.credits
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
 module.exports = {
   submitIndexingJob,
   getIndexingLogs,
@@ -332,4 +453,5 @@ module.exports = {
   exportJobsCsv,
   checkServiceAccountAccess,
   getSavedStatus,
+  freeRefill,
 };

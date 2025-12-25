@@ -46,12 +46,12 @@ export default function Topbar({ title, user }) {
           >
             {user && (
               <div className="hidden md:block text-right">
-                <p className="text-sm font-bold text-slate-700 leading-tight">
+                <p className="uppercase text-sm font-bold text-slate-700 leading-tight">
                   {user.displayName || "User"}
                 </p>
-                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
+                {/* <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
                   Admin
-                </p>
+                </p> */}
               </div>
             )}
 

@@ -1,9 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Card from "../components/Card";
-import { FaBolt, FaLink, FaFileUpload } from "react-icons/fa";
+import { FaBolt, FaLink, FaFileUpload, FaCoins , FaPlusCircle} from "react-icons/fa";
 import {
   submitIndexingJob,
   fetchIndexingLogs,
+  getDashboardData,
+  refillCredits,
 } from "../../api/indexingApi";
 
 export default function IndexingView() {
@@ -11,10 +13,27 @@ export default function IndexingView() {
   const [file, setFile] = useState(null);
   const [pingGSC, setPingGSC] = useState(true);
   const [updateSitemap, setUpdateSitemap] = useState(true);
+
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
+  const [credits, setCredits] = useState(null);
 
   const pollRef = useRef(null);
+
+  useEffect(() => {
+    loadCredits();
+  }, []);
+
+  const loadCredits = async () => {
+    try {
+      const data = await getDashboardData();
+      if (data.success && data.stats) {
+        setCredits(data.stats.credits);
+      }
+    } catch (err) {
+      console.error("Failed to load credits");
+    }
+  };
 
   const pushLog = (type, message) => {
     setLogs((prev) => [
@@ -33,26 +52,76 @@ export default function IndexingView() {
     setLoading(true);
 
     try {
-      const { jobId } = await submitIndexingJob({
+      const res = await submitIndexingJob({
         url,
         file,
         pingGSC,
         updateSitemap,
       });
 
+      if (res.creditsLeft !== undefined) {
+        setCredits(res.creditsLeft);
+      }
+
+      if (res.mode === "bulk") {
+        pushLog("info", `Bulk Process Started. Cost: ${res.count} Credits.`);
+
+        if (res.submittedUrls && res.submittedUrls.length > 0) {
+          res.submittedUrls.forEach((subUrl, index) => {
+            setTimeout(() => {
+              pushLog("success", `[QUEUED] ${subUrl}`);
+            }, index * 150);
+          });
+
+          setTimeout(() => {
+            pushLog("warning", "All URLs sent to background processor.");
+            pushLog("info", "Check 'Recent Activity' on Dashboard for results.");
+            setLoading(false);
+            setFile(null);
+            document.getElementById('csvInput').value = "";
+          }, res.submittedUrls.length * 150 + 800);
+        } else {
+          setLoading(false);
+        }
+        return;
+      }
+
+      const jobId = res.jobId;
       pollRef.current = setInterval(async () => {
-        const res = await fetchIndexingLogs(jobId);
-        setLogs(res.logs || []);
+        const logRes = await fetchIndexingLogs(jobId);
+        setLogs(logRes.logs || []);
 
         if (
-          res.status === "submitted" || res.status === "signals_sent" || res.status === "failed"
+          logRes.status === "submitted" ||
+          logRes.status === "signals_sent" ||
+          logRes.status === "failed" ||
+          logRes.status === "done"
         ) {
           clearInterval(pollRef.current);
           setLoading(false);
+          setUrl("");
         }
       }, 1500);
+
+    } catch (err) {
+      if (err.message && err.message.includes("Insufficient credits")) {
+        pushLog("error", "INSUFFICIENT CREDITS! Please recharge.");
+      } else {
+        pushLog("error", err.message || "Something went wrong");
+      }
+      setLoading(false);
+    }
+  };
+
+  const handleRefill = async () => {
+    try {
+      setLoading(true);
+      const res = await refillCredits();
+      setCredits(res.credits);
+      pushLog("success", "💰 Account recharged with 50 Free Credits!");
     } catch (err) {
       pushLog("error", err.message);
+    } finally {
       setLoading(false);
     }
   };
@@ -71,6 +140,7 @@ export default function IndexingView() {
 
       <Card className="p-8">
         <div className="space-y-6">
+
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">
               Target URL
@@ -108,6 +178,7 @@ export default function IndexingView() {
                 </span>
               </div>
               <input
+                id="csvInput"
                 type="file"
                 className="hidden"
                 accept=".csv"
@@ -117,7 +188,7 @@ export default function IndexingView() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer">
+            <label className="flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={pingGSC}
@@ -127,7 +198,7 @@ export default function IndexingView() {
               <span className="text-sm font-medium">Ping Google Search Console</span>
             </label>
 
-            <label className="flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer">
+            <label className="flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={updateSitemap}
@@ -137,39 +208,61 @@ export default function IndexingView() {
               <span className="text-sm font-medium">Update Sitemap.xml</span>
             </label>
           </div>
+          <div className="flex justify-between items-center px-1">
+            <span className="text-xs text-slate-400">Cost: 1 Credit per URL</span>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                <FaCoins className="text-yellow-500" />
+                <span className="text-sm font-bold text-slate-700">
+                  {credits !== null ? credits : "..."}
+                </span>
+              </div>
+
+              <button
+                onClick={handleRefill}
+                title="Get Free Credits"
+                className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 flex items-center gap-1 transition-colors"
+              >
+                <FaPlusCircle /> Free Refill
+              </button>
+            </div>
+          </div>
 
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2
-              ${loading ? "bg-accent/70 cursor-not-allowed" : "bg-accent hover:bg-accent/90"} text-white`}
+            className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all
+              ${loading ? "bg-accent/70 cursor-not-allowed" : "bg-accent hover:bg-accent/90 shadow-lg shadow-accent/20"} text-white`}
           >
             <FaBolt className={loading ? "animate-pulse" : ""} />
-            {loading ? "Processing…" : "Instant Submit"}
+            {loading ? "Processing..." : "Instant Submit"}
           </button>
         </div>
       </Card>
 
       {logs.length > 0 && (
-        <div className="bg-black text-slate-200 rounded-xl p-4 font-mono text-sm max-h-64 overflow-y-auto">
-          <div className="text-slate-500 mb-3">
-            &gt; <span className="text-accent">server-console</span>
+        <div className="bg-slate-900 text-slate-200 rounded-xl p-4 font-mono text-sm max-h-80 overflow-y-auto shadow-2xl border border-slate-800">
+          <div className="text-slate-500 mb-3 text-xs border-b border-slate-800 pb-2 flex justify-between">
+            <span>&gt; server-console</span>
+            {loading && <span className="animate-pulse text-accent">● LIVE</span>}
           </div>
 
-          {logs.map((log, i) => (
-            <div key={i} className="flex gap-2 mb-1">
-              <span className="text-slate-500">[{log.time}]</span>
-              <span className={
-                log.type === "success" ? "text-green-400" :
-                  log.type === "warning" ? "text-yellow-400" :
-                    log.type === "error" ? "text-red-400" : "text-blue-400"
-              }>
-                {log.type.toUpperCase()}
-              </span>
-
-              <span>{log.message}</span>
-            </div>
-          ))}
+          <div className="space-y-1">
+            {logs.map((log, i) => (
+              <div key={i} className="flex gap-3 text-xs md:text-sm animate-fade-in">
+                <span className="text-slate-600 shrink-0 select-none">[{log.time}]</span>
+                <span className={
+                  log.type === "success" ? "text-green-400 font-bold" :
+                    log.type === "warning" ? "text-yellow-400" :
+                      log.type === "error" ? "text-red-400 font-bold" : "text-blue-400"
+                }>
+                  {log.type.toUpperCase()}
+                </span>
+                <span className="break-all">{log.message}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

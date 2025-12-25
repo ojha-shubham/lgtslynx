@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
     displayName: String,
     image: String,
     verifiedSites: { type: [String], default: [] },
+    credits: { type: Number, default: 10 },
     provider: { type: String, default: "google" },
     createdAt: { type: Date, default: Date.now },
 }, { timestamps: true }

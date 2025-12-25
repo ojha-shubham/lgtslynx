@@ -17,6 +17,8 @@ export default function SettingsView() {
     const [verifiedDomains, setVerifiedDomains] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    const [targetDomain, setTargetDomain] = useState("");
+
     const SERVICE_EMAIL = "indexing-bot@lgtslynx.iam.gserviceaccount.com";
 
     useEffect(() => {
@@ -29,6 +31,7 @@ export default function SettingsView() {
             if (data.success && data.sites.length > 0) {
                 setStatus("success");
                 setVerifiedDomains(data.sites);
+                if (data.sites.length > 0) setTargetDomain(data.sites[0]);
             } else {
                 setStatus("pending");
             }
@@ -46,12 +49,17 @@ export default function SettingsView() {
     };
 
     const handleVerify = async () => {
+        if (!targetDomain.trim()) {
+            alert("Please enter your website URL first (e.g., https://myshop.com)");
+            return;
+        }
+
         setVerifying(true);
         setStatus("pending");
         setVerifiedDomains([]);
 
         try {
-            const data = await verifyGscConnection();
+            const data = await verifyGscConnection(targetDomain);
 
             if (data.success && data.sites && data.sites.length > 0) {
                 setStatus("success");
@@ -107,8 +115,12 @@ export default function SettingsView() {
                         <div className="mb-6 bg-red-50 border border-red-100 text-red-600 p-4 rounded-lg flex gap-3 text-sm animate-fade-in">
                             <FaExclamationTriangle className="mt-0.5 shrink-0" />
                             <div>
-                                <p className="font-bold">No verified properties found.</p>
-                                <p className="mt-1">Please ensure you have added the email below as an <strong>Owner</strong> in Google Search Console settings.</p>
+                                <p className="font-bold">Verification Failed.</p>
+                                <p className="mt-1">
+                                    Possible reasons:<br />
+                                    1. You haven't added the Service Email as <strong>Owner</strong> in GSC.<br />
+                                    2. The URL you entered doesn't match the GSC property exactly.
+                                </p>
                             </div>
                         </div>
                     )}
@@ -116,7 +128,7 @@ export default function SettingsView() {
                     {status === "success" && (
                         <div className="mb-6 bg-green-50 border border-green-100 p-4 rounded-lg animate-fade-in">
                             <p className="text-sm text-green-800 font-bold mb-2 flex items-center gap-2">
-                                <FaGlobe /> Verified Domains Found:
+                                <FaGlobe /> Verified Domains:
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 {verifiedDomains.map((domain, i) => (
@@ -154,38 +166,40 @@ export default function SettingsView() {
                             </ol>
                         </div>
 
-                        <button
-                            onClick={handleVerify}
-                            disabled={verifying}
-                            className={`w-full py-3 rounded-lg font-bold text-white transition-all flex justify-center items-center gap-2 ${verifying ? "bg-blue-400 cursor-wait" : "bg-blue-600 hover:bg-blue-700"
-                                }`}
-                        >
-                            {verifying ? (
-                                <>Checking Access...</>
-                            ) : (
-                                <>{status === "success" ? "Refresh Connection" : "Verify Connection Now"}</>
-                            )}
-                        </button>
+                        <div className="pt-2">
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Step 3: Enter Domain & Verify</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={targetDomain}
+                                    onChange={(e) => setTargetDomain(e.target.value)}
+                                    placeholder="https://your-site.com"
+                                    className="flex-1 border border-slate-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                />
+                                <button
+                                    onClick={handleVerify}
+                                    disabled={verifying}
+                                    className={`px-6 rounded-lg font-bold text-white transition-all whitespace-nowrap ${verifying ? "bg-blue-400 cursor-wait" : "bg-blue-600 hover:bg-blue-700"
+                                        }`}
+                                >
+                                    {verifying ? "Checking..." : "Verify Now"}
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2 ml-1">
+                                *Enter the exact URL property as shown in GSC (e.g., https://socialstech.com)
+                            </p>
+                        </div>
                     </div>
                 </Card>
 
                 <div className="space-y-6">
                     <Card className="p-6 bg-blue-50 border-blue-100">
                         <FaShieldAlt className="text-blue-500 text-3xl mb-3" />
-                        <h3 className="font-bold text-slate-800 mb-2">Why "Owner" Access?</h3>
+                        <h3 className="font-bold text-slate-800 mb-2">Secure Verification</h3>
                         <p className="text-sm text-slate-600 leading-relaxed">
-                            Google requires "Owner" level permission for Service Accounts to publish indexing requests via the API.
-                        </p>
-                        <p className="text-sm text-slate-600 leading-relaxed mt-3">
-                            <strong>Note:</strong> We do not read your search data. We only use this permission to <em>submit</em> URLs for crawling.
+                            Google requires you to explicitly claim your domain. This ensures that only you can see and manage indexing for your websites.
                         </p>
                     </Card>
-
-                    <div className="bg-white border border-dashed border-slate-300 rounded-xl p-6 text-center">
-                        <p className="text-slate-400 text-sm italic">
-                            "Bulk Indexing feature will be unlocked automatically once verification is complete."
-                        </p>
-                    </div>
                 </div>
 
             </div>

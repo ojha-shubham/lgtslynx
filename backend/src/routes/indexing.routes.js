@@ -7,6 +7,7 @@ const {
   exportJobsCsv,
   checkServiceAccountAccess,
   getSavedStatus,
+  freeRefill,
 } = require("../controllers/indexing.controller");
 const upload = require("../middlewares/upload.middleware");
 
@@ -19,5 +20,6 @@ router.get("/dashboard", getDashboardStats);
 router.get("/export", exportJobsCsv);
 router.get("/verify-access", checkServiceAccountAccess);
 router.get("/status", getSavedStatus);
+router.post("/refill", freeRefill);
 
 module.exports = router;
