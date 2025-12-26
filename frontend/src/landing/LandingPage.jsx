@@ -15,7 +15,7 @@ export default function LandingPage({ onLaunch }) {
       <Features />
       <HowItWorks />
       <Security />
-      <Pricing />
+      {/* <Pricing /> */}
       <CTA onLaunch={onLaunch} />
       <Footer />
     </>
